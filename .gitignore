@@ -1,0 +1,18 @@
+# Monkey C
+bin/
+mir/
+gen/
+internal-mir/
+temp/
+*.prg
+*.iq
+*.debug.xml
+*.sig
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
