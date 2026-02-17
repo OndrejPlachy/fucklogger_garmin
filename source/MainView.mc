@@ -3,18 +3,33 @@ import Toybox.WatchUi;
 import Toybox.Lang;
 import Toybox.Timer;
 import Toybox.Math;
+import Toybox.Time;
+import Toybox.Time.Gregorian;
+import Toybox.System;
 
 // Main View - The "Action" Screen
 // Layout:
-//   Top:    "MONTH TOTAL" label + count
+//   Top:    Split panel [Year Total | Month Total] with navigation arrows
 //   Center: Eggplant icon in circle (flashes pink on tap)
 //   Bottom: Curved horniness arc (cold blue → hot red)
 class MainView extends WatchUi.View {
     
     private var _eggplantBitmap as BitmapResource?;
+    private var _yearTotal as Number = 0;
     private var _monthTotal as Number = 0;
     private var _horniness as Number = 3;
     private var _interactionCount as Number = 0;
+
+    // Navigation state
+    private var _selectedYear as Number = 2026;
+    private var _selectedMonth as Number = 1;
+
+    // Month names for display (abbreviated to fit)
+    private const MONTH_NAMES = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+                                  "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    // Color constants for panel
+    private const YEAR_COLOR = 0x6EC6FF;   // Light blue
+    private const MONTH_COLOR = 0xFF69B4;  // Hot pink
 
     // Animation state
     private var _animationTimer as Timer.Timer?;
@@ -39,6 +54,11 @@ class MainView extends WatchUi.View {
     
     function initialize() {
         View.initialize();
+        // Initialize to current date
+        var now = Time.now();
+        var info = Gregorian.info(now, Time.FORMAT_SHORT);
+        _selectedYear = info.year;
+        _selectedMonth = info.month;
     }
 
     function onLayout(dc as Dc) as Void {
@@ -52,7 +72,8 @@ class MainView extends WatchUi.View {
     }
     
     function refreshData() as Void {
-        _monthTotal = DataManager.getMonthTotal();
+        _yearTotal = DataManager.getYearTotalFor(_selectedYear);
+        _monthTotal = DataManager.getMonthTotalFor(_selectedYear, _selectedMonth);
         var todayLog = DataManager.getTodayLog();
         _interactionCount = todayLog[0];
         _horniness = todayLog[1];
@@ -67,17 +88,59 @@ class MainView extends WatchUi.View {
         var cx = width / 2;
         var cy = height / 2;
         
+        var yearCount = _yearTotal;
         var monthCount = _monthTotal;
         var horniness = _horniness;
 
-        // --- SECTION 1: TOP — "MONTH TOTAL" + number ---
-        // Using distinct fonts for modern look
-        dc.setColor(0xAAAAAA, Graphics.COLOR_TRANSPARENT); // Light gray
-        dc.drawText(cx, height * 0.13, Graphics.FONT_XTINY, "MONTH TOTAL", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-        
-        // Large, clean number
+        // --- SECTION 1: TOP — Split panel [Year | Month] with arrows ---
+        var labelY = height * 15 / 100;      // ~59px - labels row
+        var numberY = height * 24 / 100;     // ~94px - numbers row
+        var leftColX = width * 37 / 100;     // ~144px - year column center
+        var rightColX = width * 63 / 100;    // ~246px - month column center
+        var arrowLX = width * 19 / 100;      // ~74px - left arrows X
+        var arrowRX = width * 81 / 100;      // ~316px - right arrows X
+
+        // Convex curved background panel (follows watch bezel)
+        var panelArcRadius = width / 2 - 4;  // Just inside the bezel
+        dc.setPenWidth(height * 18 / 100);   // Thick arc as background fill
+        // Left half - subtle dark blue
+        dc.setColor(0x0D1B2A, Graphics.COLOR_TRANSPARENT);
+        dc.drawArc(cx, cy, panelArcRadius, Graphics.ARC_CLOCKWISE, 130, 90);
+        // Right half - subtle dark pink
+        dc.setColor(0x2A0D1B, Graphics.COLOR_TRANSPARENT);
+        dc.drawArc(cx, cy, panelArcRadius, Graphics.ARC_CLOCKWISE, 90, 50);
+
+        // Vertical divider line
+        dc.setColor(0x444444, Graphics.COLOR_TRANSPARENT);
+        dc.setPenWidth(1);
+        dc.drawLine(cx, height * 11 / 100, cx, height * 28 / 100);
+
+        // Year label and number (left column - blue)
+        dc.setColor(YEAR_COLOR, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(leftColX, labelY, Graphics.FONT_XTINY, _selectedYear.toString(), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(cx, height * 0.24, Graphics.FONT_NUMBER_MEDIUM, monthCount.toString(), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText(leftColX, numberY, Graphics.FONT_MEDIUM, yearCount.toString(), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+
+        // Month label and number (right column - pink)
+        dc.setColor(MONTH_COLOR, Graphics.COLOR_TRANSPARENT);
+        var monthLabel = MONTH_NAMES[_selectedMonth - 1];
+        dc.drawText(rightColX, labelY, Graphics.FONT_XTINY, monthLabel, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(rightColX, numberY, Graphics.FONT_MEDIUM, monthCount.toString(), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+
+        // Year arrows (left side - blue triangles)
+        dc.setColor(YEAR_COLOR, Graphics.COLOR_TRANSPARENT);
+        // Up arrow
+        dc.fillPolygon([[arrowLX, labelY - 8], [arrowLX - 7, labelY + 2], [arrowLX + 7, labelY + 2]]);
+        // Down arrow
+        dc.fillPolygon([[arrowLX, numberY + 8], [arrowLX - 7, numberY - 2], [arrowLX + 7, numberY - 2]]);
+
+        // Month arrows (right side - pink triangles)
+        dc.setColor(MONTH_COLOR, Graphics.COLOR_TRANSPARENT);
+        // Up arrow
+        dc.fillPolygon([[arrowRX, labelY - 8], [arrowRX - 7, labelY + 2], [arrowRX + 7, labelY + 2]]);
+        // Down arrow
+        dc.fillPolygon([[arrowRX, numberY + 8], [arrowRX - 7, numberY - 2], [arrowRX + 7, numberY - 2]]);
 
         // --- SECTION 2: CENTER — Eggplant button ---
         // Center circle logic with scale animation
@@ -154,11 +217,11 @@ class MainView extends WatchUi.View {
         }
 
         // Horniness label below the eggplant
-        var labelY = circleCY + baseRadius + 22;
+        var hornLabelY = circleCY + baseRadius + 22;
         var hornLabels = ["COLD", "COOL", "WARM", "HOT", "FIRE"];
         if (horniness > 0 && horniness <= 5) {
             dc.setColor(HORN_COLORS_ACTIVE[horniness - 1] as Number, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, labelY, Graphics.FONT_SYSTEM_XTINY, hornLabels[horniness - 1], Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(cx, hornLabelY, Graphics.FONT_SYSTEM_XTINY, hornLabels[horniness - 1], Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
     }
     
@@ -174,8 +237,22 @@ class MainView extends WatchUi.View {
     function undoInteraction() as Void {
         if (_interactionCount > 0) {
             _interactionCount -= 1;
+            // Decrement distribution bucket
+            var todayISO = DataManager.getTodayISO();
+            var data = DataManager.getLog(todayISO);
+            var dist = DataManager.getDistribution(data);
+            for (var h = 4; h >= 0; h--) {
+                if (dist[h] > 0) {
+                    dist[h] -= 1;
+                    break;
+                }
+            }
+            var newData = [_interactionCount, _horniness, dist[0], dist[1], dist[2], dist[3], dist[4]] as Array<Number>;
+            // Use saveLog to handle stats (it will preserve the dist we're passing indirectly)
+            DataManager.saveLog(todayISO, _interactionCount, _horniness);
+            // Now overwrite with correct distribution
+            Application.Storage.setValue(todayISO, newData);
         }
-        DataManager.saveLog(DataManager.getTodayISO(), _interactionCount, _horniness);
         refreshData();
     }
     
@@ -222,6 +299,14 @@ class MainView extends WatchUi.View {
         WatchUi.requestUpdate();
     }
 
+    function setHorniness(level as Number) as Void {
+        if (level >= 1 && level <= 5) {
+            _horniness = level;
+            DataManager.saveLog(DataManager.getTodayISO(), _interactionCount, _horniness);
+            WatchUi.requestUpdate();
+        }
+    }
+
     function getCircleCenterY() as Number {
         var height = System.getDeviceSettings().screenHeight;
         return (height / 2) + 5;
@@ -235,5 +320,58 @@ class MainView extends WatchUi.View {
         var cx = System.getDeviceSettings().screenWidth / 2;
         var cy = (System.getDeviceSettings().screenHeight / 2) + 5;
         return [cx - 50 - 40, cy] as Array<Number>;
+    }
+
+    // --- Navigation methods ---
+    function getSelectedYear() as Number { return _selectedYear; }
+    function getSelectedMonth() as Number { return _selectedMonth; }
+
+    function isViewingCurrentMonth() as Boolean {
+        var now = Time.now();
+        var info = Gregorian.info(now, Time.FORMAT_SHORT);
+        return _selectedYear == info.year && _selectedMonth == info.month;
+    }
+
+    function nextMonth() as Void {
+        var now = Time.now();
+        var info = Gregorian.info(now, Time.FORMAT_SHORT);
+        var newMonth = _selectedMonth + 1;
+        var newYear = _selectedYear;
+        if (newMonth > 12) { newMonth = 1; newYear += 1; }
+        if (newYear > info.year || (newYear == info.year && newMonth > info.month)) { return; }
+        _selectedMonth = newMonth;
+        _selectedYear = newYear;
+        refreshData();
+        WatchUi.requestUpdate();
+    }
+
+    function prevMonth() as Void {
+        var newMonth = _selectedMonth - 1;
+        var newYear = _selectedYear;
+        if (newMonth < 1) { newMonth = 12; newYear -= 1; }
+        if (newYear < 2020) { return; }
+        _selectedMonth = newMonth;
+        _selectedYear = newYear;
+        refreshData();
+        WatchUi.requestUpdate();
+    }
+
+    function nextYear() as Void {
+        var now = Time.now();
+        var info = Gregorian.info(now, Time.FORMAT_SHORT);
+        if (_selectedYear + 1 > info.year) { return; }
+        _selectedYear += 1;
+        if (_selectedYear == info.year && _selectedMonth > info.month) {
+            _selectedMonth = info.month;
+        }
+        refreshData();
+        WatchUi.requestUpdate();
+    }
+
+    function prevYear() as Void {
+        if (_selectedYear - 1 < 2020) { return; }
+        _selectedYear -= 1;
+        refreshData();
+        WatchUi.requestUpdate();
     }
 }

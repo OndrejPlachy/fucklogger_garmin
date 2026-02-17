@@ -62,46 +62,97 @@ module DataManager {
         Storage.setValue(KEY_GLOBAL_STATS, stats);
     }
 
-    // Save a log entry for a specific date
+    // Get horniness distribution from a log entry (handles migration)
+    // Returns [h1count, h2count, h3count, h4count, h5count]
+    function getDistribution(data as Array<Number>?) as Array<Number> {
+        if (data != null && data.size() >= 7) {
+            return [data[2], data[3], data[4], data[5], data[6]] as Array<Number>;
+        }
+        // Migrate old 2-element format: assign all count to stored horniness
+        if (data != null && data.size() >= 2 && data[0] > 0) {
+            var dist = [0, 0, 0, 0, 0] as Array<Number>;
+            var h = data[1];
+            if (h >= 1 && h <= 5) { dist[h - 1] = data[0]; }
+            return dist;
+        }
+        return [0, 0, 0, 0, 0] as Array<Number>;
+    }
+
+    // Save a log entry — preserves existing horniness distribution
     function saveLog(isoDate as String, interactionCount as Number, horninessLevel as Number) as Void {
-        // Get previous value to update stats incrementally
         var oldData = getLog(isoDate);
         var oldCount = 0;
         var stats = getGlobalStats();
 
-        // 1. Revert old stats contribution if exists
+        // Preserve existing distribution
+        var dist = getDistribution(oldData);
+
+        // 1. Revert old stats
         if (oldData != null) {
             oldCount = oldData[0];
             var oldHorniness = oldData[1];
-            
             stats["totalCount"] -= oldCount;
-            
             if (oldCount > 0) {
                  stats["daysWithInteraction"] -= 1;
                  stats["dailyHorninessSum"] -= oldHorniness;
             }
         }
 
-        // 2. Add new stats contribution
+        // 2. Add new stats
         stats["totalCount"] += interactionCount;
         if (interactionCount > 0) {
             stats["daysWithInteraction"] += 1;
             stats["dailyHorninessSum"] += horninessLevel;
         }
 
-        // 3. Save stats and log
+        // 3. Save stats and 7-element log
         saveGlobalStats(stats);
-        
-        var data = [interactionCount, horninessLevel] as Array<Number>;
+        var data = [interactionCount, horninessLevel, dist[0], dist[1], dist[2], dist[3], dist[4]] as Array<Number>;
         Storage.setValue(isoDate, data);
 
-        // 4. Update month total cache incrementally
-        //    Check if this date falls in the currently cached month
+        // 4. Update month total cache
         if (_monthTotalCache != null && _monthTotalMonth != null && isoDate.length() >= 7) {
-            var dateMonth = isoDate.substring(0, 7); // "YYYY-MM"
+            var dateMonth = isoDate.substring(0, 7);
             if (dateMonth.equals(_monthTotalMonth)) {
-                // Adjust cache by the delta
                 _monthTotalCache = _monthTotalCache + (interactionCount - oldCount);
+            }
+        }
+    }
+
+    // Log one intercourse, tracking horniness level at this moment
+    function incrementDay(isoDate as String, horniness as Number) as Void {
+        var oldData = getLog(isoDate);
+        var oldCount = 0;
+        var dist = getDistribution(oldData);
+        var stats = getGlobalStats();
+
+        if (oldData != null) {
+            oldCount = oldData[0];
+            var oldHorniness = oldData[1];
+            stats["totalCount"] -= oldCount;
+            if (oldCount > 0) {
+                stats["daysWithInteraction"] -= 1;
+                stats["dailyHorninessSum"] -= oldHorniness;
+            }
+        }
+
+        var newCount = oldCount + 1;
+        if (horniness >= 1 && horniness <= 5) {
+            dist[horniness - 1] += 1;
+        }
+
+        stats["totalCount"] += newCount;
+        stats["daysWithInteraction"] += 1;
+        stats["dailyHorninessSum"] += horniness;
+
+        saveGlobalStats(stats);
+        var data = [newCount, horniness, dist[0], dist[1], dist[2], dist[3], dist[4]] as Array<Number>;
+        Storage.setValue(isoDate, data);
+
+        if (_monthTotalCache != null && _monthTotalMonth != null && isoDate.length() >= 7) {
+            var dateMonth = isoDate.substring(0, 7);
+            if (dateMonth.equals(_monthTotalMonth)) {
+                _monthTotalCache = _monthTotalCache + 1;
             }
         }
     }
@@ -220,6 +271,196 @@ module DataManager {
         }
         return 0;
     }
+    // Calculate sum of interactions for a specific year
+    function getYearTotalFor(year as Number) as Number {
+        var yearStr = year.format("%04d");
+        var total = 0;
+
+        for (var m = 1; m <= 12; m++) {
+            var monthStr = m.format("%02d");
+            for (var d = 1; d <= 31; d++) {
+                var dateKey = Lang.format("$1$-$2$-$3$", [yearStr, monthStr, d.format("%02d")]);
+                var data = getLog(dateKey);
+                if (data != null) {
+                    total += data[0];
+                }
+            }
+        }
+        return total;
+    }
+
+    // Calculate sum of interactions for a specific month
+    function getMonthTotalFor(year as Number, month as Number) as Number {
+        var yearStr = year.format("%04d");
+        var monthStr = month.format("%02d");
+        var total = 0;
+
+        for (var d = 1; d <= 31; d++) {
+            var dateKey = Lang.format("$1$-$2$-$3$", [yearStr, monthStr, d.format("%02d")]);
+            var data = getLog(dateKey);
+            if (data != null) {
+                total += data[0];
+            }
+        }
+        return total;
+    }
+
+    // Decrement the most recent day in a specific month that has count > 0
+    // Also decrements the horniness distribution bucket
+    function decrementInMonth(year as Number, month as Number) as Boolean {
+        var yearStr = year.format("%04d");
+        var monthStr = month.format("%02d");
+
+        var now = Time.now();
+        var info = Gregorian.info(now, Time.FORMAT_SHORT);
+        var maxDay = 31;
+        if (year == info.year && month == info.month) {
+            maxDay = info.day;
+        }
+
+        for (var d = maxDay; d >= 1; d--) {
+            var dateKey = Lang.format("$1$-$2$-$3$", [yearStr, monthStr, d.format("%02d")]);
+            var data = getLog(dateKey);
+            if (data != null && data[0] > 0) {
+                var newCount = data[0] - 1;
+                var dist = getDistribution(data);
+                // Decrement from a bucket (prefer highest populated)
+                for (var h = 4; h >= 0; h--) {
+                    if (dist[h] > 0) {
+                        dist[h] -= 1;
+                        break;
+                    }
+                }
+                var newData = [newCount, data[1], dist[0], dist[1], dist[2], dist[3], dist[4]] as Array<Number>;
+                // Update stats
+                var stats = getGlobalStats();
+                stats["totalCount"] -= data[0];
+                if (data[0] > 0) { stats["daysWithInteraction"] -= 1; stats["dailyHorninessSum"] -= data[1]; }
+                stats["totalCount"] += newCount;
+                if (newCount > 0) { stats["daysWithInteraction"] += 1; stats["dailyHorninessSum"] += data[1]; }
+                saveGlobalStats(stats);
+                Storage.setValue(dateKey, newData);
+                // Update cache
+                if (_monthTotalCache != null && _monthTotalMonth != null) {
+                    var dm = dateKey.substring(0, 7);
+                    if (dm.equals(_monthTotalMonth)) { _monthTotalCache = _monthTotalCache - 1; }
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Add interaction to day 1 of a specific month (uses incrementDay for tracking)
+    function addToMonth(year as Number, month as Number, horniness as Number) as Void {
+        var yearStr = year.format("%04d");
+        var monthStr = month.format("%02d");
+        var dateKey = Lang.format("$1$-$2$-$3$", [yearStr, monthStr, "01"]);
+        incrementDay(dateKey, horniness);
+    }
+
+    // Get daily breakdown for a specific month
+    // Returns array of dictionaries: { "day" => 1, "dow" => "MON", "count" => 2, "horn" => 3 }
+    // Only includes days with data (count > 0)
+    function getDailyBreakdown(year as Number, month as Number) as Array<Dictionary> {
+        var yearStr = year.format("%04d");
+        var monthStr = month.format("%02d");
+        var result = [] as Array<Dictionary>;
+        var dowNames = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+
+        for (var d = 1; d <= 31; d++) {
+            var dateKey = Lang.format("$1$-$2$-$3$", [yearStr, monthStr, d.format("%02d")]);
+            var data = getLog(dateKey);
+            if (data != null && data[0] > 0) {
+                // Calculate day of week using Gregorian
+                var options = {
+                    :year => year,
+                    :month => month,
+                    :day => d,
+                    :hour => 12
+                };
+                var moment = Gregorian.moment(options);
+                var info = Gregorian.info(moment, Time.FORMAT_SHORT);
+                var dow = info.day_of_week; // 1=Sunday, 7=Saturday
+                var dowStr = dowNames[dow - 1];
+
+                result.add({
+                    "day" => d,
+                    "dow" => dowStr,
+                    "count" => data[0],
+                    "horn" => data[1]
+                } as Dictionary);
+            }
+        }
+        return result;
+    }
+
+    // Get horniness distribution for a specific month
+    // Returns array of 5 Numbers: count of intercourses at each horniness level [1..5]
+    // Get horniness distribution for a month (reads from per-intercourse tracking)
+    function getHorninessCounts(year as Number, month as Number) as Array<Number> {
+        var yearStr = year.format("%04d");
+        var monthStr = month.format("%02d");
+        var counts = [0, 0, 0, 0, 0] as Array<Number>;
+
+        for (var d = 1; d <= 31; d++) {
+            var dateKey = Lang.format("$1$-$2$-$3$", [yearStr, monthStr, d.format("%02d")]);
+            var data = getLog(dateKey);
+            if (data != null && data[0] > 0) {
+                var dist = getDistribution(data);
+                for (var h = 0; h < 5; h++) {
+                    counts[h] += dist[h];
+                }
+            }
+        }
+        return counts;
+    }
+
+    // Get horniness distribution for an entire year
+    function getYearHorninessCounts(year as Number) as Array<Number> {
+        var counts = [0, 0, 0, 0, 0] as Array<Number>;
+        for (var m = 1; m <= 12; m++) {
+            var mc = getHorninessCounts(year, m);
+            for (var h = 0; h < 5; h++) {
+                counts[h] += mc[h];
+            }
+        }
+        return counts;
+    }
+
+    // Get day-of-week distribution for a month
+    function getDowCounts(year as Number, month as Number) as Array<Number> {
+        var yearStr = year.format("%04d");
+        var monthStr = month.format("%02d");
+        var counts = [0, 0, 0, 0, 0, 0, 0] as Array<Number>; // SUN-SAT
+
+        for (var d = 1; d <= 31; d++) {
+            var dateKey = Lang.format("$1$-$2$-$3$", [yearStr, monthStr, d.format("%02d")]);
+            var data = getLog(dateKey);
+            if (data != null && data[0] > 0) {
+                var options = { :year => year, :month => month, :day => d, :hour => 12 };
+                var moment = Gregorian.moment(options);
+                var dinfo = Gregorian.info(moment, Time.FORMAT_SHORT);
+                var dow = dinfo.day_of_week; // 1=Sun, 7=Sat
+                counts[dow - 1] += data[0];
+            }
+        }
+        return counts;
+    }
+
+    // Get day-of-week distribution for an entire year
+    function getYearDowCounts(year as Number) as Array<Number> {
+        var counts = [0, 0, 0, 0, 0, 0, 0] as Array<Number>;
+        for (var m = 1; m <= 12; m++) {
+            var mc = getDowCounts(year, m);
+            for (var i = 0; i < 7; i++) {
+                counts[i] += mc[i];
+            }
+        }
+        return counts;
+    }
+
+
     // Get monthly history (newest first, up to 12 months)
     // Returns array of { "month" => "Feb 2026", "total" => 5, "avgHorn" => 3 }
     function getMonthlyHistory() as Array<Dictionary> {
