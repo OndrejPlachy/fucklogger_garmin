@@ -99,55 +99,49 @@ class MainView extends WatchUi.View {
         var monthCount = _monthTotal;
         var horniness = _horniness;
 
-        // --- SECTION 1: TOP — Split panel [Year | Month] with arrows ---
-        var labelY = height * 15 / 100;      // ~59px - labels row
-        var numberY = height * 24 / 100;     // ~94px - numbers row
-        var leftColX = width * 37 / 100;     // ~144px - year column center
-        var rightColX = width * 63 / 100;    // ~246px - month column center
-        var arrowLX = width * 19 / 100;      // ~74px - left arrows X
-        var arrowRX = width * 81 / 100;      // ~316px - right arrows X
+        // --- SECTION 1: TOP — Split panel [Year | Month] ---
+        // Vertical stacked layout without backgrounds
+        var arrowUpY = height * 8 / 100;     // ~31px - top arrows
+        var headerY = height * 12 / 100;     // ~48px - 2026 / FEB
+        var numberY = height * 23 / 100;     // ~90px - 30 / 16 (large)
+        var labelY = height * 30 / 100;      // ~118px - YTD / MTD
+        var arrowDownY = height * 36 / 100;  // ~142px - bottom arrows
+        
+        var leftColX = width * 32 / 100;     // Shifted slightly left from center
+        var rightColX = width * 68 / 100;    // Shifted slightly right from center
 
-        // Convex curved background panel (follows watch bezel)
-        var panelArcRadius = width / 2 - 4;  // Just inside the bezel
-        dc.setPenWidth(height * 18 / 100);   // Thick arc as background fill
-        // Left half - subtle dark blue
-        dc.setColor(0x0D1B2A, Graphics.COLOR_TRANSPARENT);
-        dc.drawArc(cx, cy, panelArcRadius, Graphics.ARC_CLOCKWISE, 130, 90);
-        // Right half - subtle dark pink
-        dc.setColor(0x2A0D1B, Graphics.COLOR_TRANSPARENT);
-        dc.drawArc(cx, cy, panelArcRadius, Graphics.ARC_CLOCKWISE, 90, 50);
-
-        // Vertical divider line
-        dc.setColor(0x444444, Graphics.COLOR_TRANSPARENT);
-        dc.setPenWidth(1);
-        dc.drawLine(cx, height * 11 / 100, cx, height * 28 / 100);
-
-        // Year label and number (left column - blue)
+        // Year Column (left - teal)
         dc.setColor(YEAR_COLOR, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(leftColX, labelY, Graphics.FONT_XTINY, _selectedYear.toString(), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        // Up arrow ▲ (small)
+        dc.fillPolygon([[leftColX, arrowUpY - 5], [leftColX - 6, arrowUpY + 3], [leftColX + 6, arrowUpY + 3]]);
+        // Header: 2026
+        dc.drawText(leftColX, headerY, Graphics.FONT_TINY, _selectedYear.toString(), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        // Value: 30
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(leftColX, numberY, Graphics.FONT_MEDIUM, yearCount.toString(), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText(leftColX, numberY, Graphics.FONT_NUMBER_MEDIUM, yearCount.toString(), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        // Label: YTD
+        dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(leftColX, labelY, Graphics.FONT_XTINY, "YTD", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        // Down arrow ▼ (small)
+        dc.setColor(YEAR_COLOR, Graphics.COLOR_TRANSPARENT);
+        dc.fillPolygon([[leftColX, arrowDownY + 5], [leftColX - 6, arrowDownY - 3], [leftColX + 6, arrowDownY - 3]]);
 
-        // Month label and number (right column - pink)
+        // Month Column (right - pink)
         dc.setColor(MONTH_COLOR, Graphics.COLOR_TRANSPARENT);
+        // Up arrow ▲ (small)
+        dc.fillPolygon([[rightColX, arrowUpY - 5], [rightColX - 6, arrowUpY + 3], [rightColX + 6, arrowUpY + 3]]);
+        // Header: FEB
         var monthLabel = MONTH_NAMES[_selectedMonth - 1];
-        dc.drawText(rightColX, labelY, Graphics.FONT_XTINY, monthLabel, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText(rightColX, headerY, Graphics.FONT_TINY, monthLabel, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        // Value: 16
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(rightColX, numberY, Graphics.FONT_MEDIUM, monthCount.toString(), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-
-        // Year arrows (left side - blue triangles)
-        dc.setColor(YEAR_COLOR, Graphics.COLOR_TRANSPARENT);
-        // Up arrow
-        dc.fillPolygon([[arrowLX, labelY - 8], [arrowLX - 7, labelY + 2], [arrowLX + 7, labelY + 2]]);
-        // Down arrow
-        dc.fillPolygon([[arrowLX, numberY + 8], [arrowLX - 7, numberY - 2], [arrowLX + 7, numberY - 2]]);
-
-        // Month arrows (right side - pink triangles)
+        dc.drawText(rightColX, numberY, Graphics.FONT_NUMBER_MEDIUM, monthCount.toString(), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        // Label: MTD
+        dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(rightColX, labelY, Graphics.FONT_XTINY, "MTD", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        // Down arrow ▼ (small)
         dc.setColor(MONTH_COLOR, Graphics.COLOR_TRANSPARENT);
-        // Up arrow
-        dc.fillPolygon([[arrowRX, labelY - 8], [arrowRX - 7, labelY + 2], [arrowRX + 7, labelY + 2]]);
-        // Down arrow
-        dc.fillPolygon([[arrowRX, numberY + 8], [arrowRX - 7, numberY - 2], [arrowRX + 7, numberY - 2]]);
+        dc.fillPolygon([[rightColX, arrowDownY + 5], [rightColX - 6, arrowDownY - 3], [rightColX + 6, arrowDownY - 3]]);
 
         // --- SECTION 2: CENTER — Eggplant button ---
         // Center circle logic with scale animation

@@ -31,48 +31,39 @@ class MainDelegate extends WatchUi.BehaviorDelegate {
         var circleCY = _view.getCircleCenterY();
         var circleR = _view.getCircleRadius();
 
-        // --- Arrow zones (same positions as drawn in MainView) ---
-        var arrowLX = screenWidth * 19 / 100;
-        var arrowRX = screenWidth * 81 / 100;
-        var arrowUpY = screenHeight * 15 / 100;
-        var arrowDownY = screenHeight * 24 / 100;
-        var arrowThreshSq = 25 * 25; // Generous tap target
-
-        // --- DEBUG USER TRIGGER: Top Center (Sync) ---
-        // Top 15% of screen -> Trigger Sync
-        if (tapY < screenHeight * 0.15 && tapX > screenWidth * 0.3 && tapX < screenWidth * 0.7) {
+        // --- Invisible Box Touch Zones (Top panel) ---
+        // The top panel occupies roughly the top 40% of the screen.
+        var topPanelHeight = screenHeight * 0.4;
+        
+        // 1. Sync Trigger Override (Top Center)
+        // Ensure manual sync trigger doesn't consume whole top of screen.
+        // Restricting sync to top 15% and center 30%.
+        if (tapY < screenHeight * 0.15 && tapX > screenWidth * 0.35 && tapX < screenWidth * 0.65) {
              System.println("-> MANUAL SYNC TRIGGERED");
              getApp().getNetworkManager().syncAllData();
              return true;
         }
 
-        // Check year up arrow
-        var adx = tapX - arrowLX;
-        var ady = tapY - arrowUpY;
-        if ((adx * adx + ady * ady) <= arrowThreshSq) {
-            _view.nextYear();
-            WatchUi.requestUpdate();
-            return true;
-        }
-        // Check year down arrow
-        ady = tapY - arrowDownY;
-        if ((adx * adx + ady * ady) <= arrowThreshSq) {
-            _view.prevYear();
-            WatchUi.requestUpdate();
-            return true;
-        }
-        // Check month up arrow
-        adx = tapX - arrowRX;
-        ady = tapY - arrowUpY;
-        if ((adx * adx + ady * ady) <= arrowThreshSq) {
-            _view.nextMonth();
-            WatchUi.requestUpdate();
-            return true;
-        }
-        // Check month down arrow
-        ady = tapY - arrowDownY;
-        if ((adx * adx + ady * ady) <= arrowThreshSq) {
-            _view.prevMonth();
+        // 2. Year & Month Invisible Touch Zones
+        if (tapY < topPanelHeight) {
+            var isLeftHalf = (tapX < cx);
+            var centerOfTextY = screenHeight * 0.23; // rough center of the large number
+            
+            if (isLeftHalf) {
+                // Year Zone
+                if (tapY < centerOfTextY) {
+                    _view.nextYear();
+                } else {
+                    _view.prevYear();
+                }
+            } else {
+                // Month Zone
+                if (tapY < centerOfTextY) {
+                    _view.nextMonth();
+                } else {
+                    _view.prevMonth();
+                }
+            }
             WatchUi.requestUpdate();
             return true;
         }
