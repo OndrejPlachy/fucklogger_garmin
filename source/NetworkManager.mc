@@ -21,7 +21,6 @@ class NetworkManager {
     }
     
     private var _syncStatus = SYNC_IDLE;
-    private var _lastError = null;
 
     // Callback for UI updates
     private var _onSyncStatusChanged = null;
@@ -94,7 +93,6 @@ class NetworkManager {
             }
         } else {
             _syncStatus = SYNC_ERROR;
-            _lastError = responseCode;
             System.println("Sync failed! Error code: " + responseCode);
         }
 
