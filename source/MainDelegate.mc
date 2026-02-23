@@ -38,11 +38,18 @@ class MainDelegate extends WatchUi.BehaviorDelegate {
         var arrowDownY = screenHeight * 24 / 100;
         var arrowThreshSq = 25 * 25; // Generous tap target
 
+        // --- DEBUG USER TRIGGER: Top Center (Sync) ---
+        // Top 15% of screen -> Trigger Sync
+        if (tapY < screenHeight * 0.15 && tapX > screenWidth * 0.3 && tapX < screenWidth * 0.7) {
+             System.println("-> MANUAL SYNC TRIGGERED");
+             getApp().getNetworkManager().syncAllData();
+             return true;
+        }
+
         // Check year up arrow
         var adx = tapX - arrowLX;
         var ady = tapY - arrowUpY;
         if ((adx * adx + ady * ady) <= arrowThreshSq) {
-            System.println("-> YEAR UP");
             _view.nextYear();
             WatchUi.requestUpdate();
             return true;
@@ -50,7 +57,6 @@ class MainDelegate extends WatchUi.BehaviorDelegate {
         // Check year down arrow
         ady = tapY - arrowDownY;
         if ((adx * adx + ady * ady) <= arrowThreshSq) {
-            System.println("-> YEAR DOWN");
             _view.prevYear();
             WatchUi.requestUpdate();
             return true;
@@ -59,7 +65,6 @@ class MainDelegate extends WatchUi.BehaviorDelegate {
         adx = tapX - arrowRX;
         ady = tapY - arrowUpY;
         if ((adx * adx + ady * ady) <= arrowThreshSq) {
-            System.println("-> MONTH UP");
             _view.nextMonth();
             WatchUi.requestUpdate();
             return true;
@@ -67,7 +72,6 @@ class MainDelegate extends WatchUi.BehaviorDelegate {
         // Check month down arrow
         ady = tapY - arrowDownY;
         if ((adx * adx + ady * ady) <= arrowThreshSq) {
-            System.println("-> MONTH DOWN");
             _view.prevMonth();
             WatchUi.requestUpdate();
             return true;
@@ -93,10 +97,7 @@ class MainDelegate extends WatchUi.BehaviorDelegate {
         var eggDistSq = (dx * dx) + (dy * dy);
         var eggThreshSq = (circleR + 15) * (circleR + 15);
 
-        System.println("TAP at (" + tapX + "," + tapY + ")");
-
         if (minusDistSq <= minusThreshSq) {
-            System.println("-> MINUS (decrement " + selYear + "-" + selMonth + ")");
             var didDecrement = DataManager.decrementInMonth(selYear, selMonth);
             if (didDecrement && Attention has :vibrate) {
                 var vibe = [new Attention.VibeProfile(30, 80)] as Array<Attention.VibeProfile>;
@@ -104,7 +105,6 @@ class MainDelegate extends WatchUi.BehaviorDelegate {
             }
             _view.refreshData();
         } else if (eggDistSq <= eggThreshSq) {
-            System.println("-> EGGPLANT");
             if (_view.isViewingCurrentMonth()) {
                 // Current month: add to today with current horniness tracking
                 DataManager.incrementDay(DataManager.getTodayISO(), currentHorniness);
@@ -130,7 +130,6 @@ class MainDelegate extends WatchUi.BehaviorDelegate {
             if (newHorniness < 1) { newHorniness = 1; }
             if (newHorniness > 5) { newHorniness = 5; }
             
-            System.println("-> HORNINESS direct: " + newHorniness);
             DataManager.saveLog(DataManager.getTodayISO(), currentCount, newHorniness);
             _view.refreshData();
         }
@@ -154,22 +153,24 @@ class MainDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
     
-    // Menu button → History
+    // Swipe down → Sync (Primary Trigger)
+    function onPreviousPage() as Boolean {
+        getApp().getNetworkManager().syncAllData();
+        return true;
+    }
+    
+    // Menu button → Sync (Backup Trigger / Physical Button)
     function onMenu() as Boolean {
-        var historyView = new HistoryView();
-        var historyDelegate = new HistoryDelegate(historyView);
-        WatchUi.pushView(historyView, historyDelegate, WatchUi.SLIDE_LEFT);
+        getApp().getNetworkManager().syncAllData();
         return true;
     }
     
     // Swipe up → History
     function onNextPage() as Boolean {
-        return onMenu();
-    }
-    
-    // Back → exit app
-    function onBack() as Boolean {
-        return false;
+        var historyView = new HistoryView();
+        var historyDelegate = new HistoryDelegate(historyView);
+        WatchUi.pushView(historyView, historyDelegate, WatchUi.SLIDE_LEFT);
+        return true;
     }
     
     // Physical select button — do nothing on touch (onTap handles it)

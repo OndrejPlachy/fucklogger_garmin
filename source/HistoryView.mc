@@ -286,14 +286,14 @@ class HistoryView extends WatchUi.View {
                 dc.setColor(filteredColors[i] as Number, Graphics.COLOR_TRANSPARENT);
                 dc.fillRectangle(bx, barBot - bH, barW, bH);
                 
-                // Value label on top of bar (tiny custom font)
+                // Value label on top of bar (standard font, larger and clearer)
                 dc.setColor(COL_GRAY_TXT, Graphics.COLOR_TRANSPARENT);
-                drawTinyNumber(dc, bx + (barW/2), barBot - bH - 10, val);
+                dc.drawText(bx + (barW/2), barBot - bH - 12, Graphics.FONT_XTINY, val.toString(), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
                 
-                // X-axis label below bar (only for DOW mode, tiny)
+                // X-axis label below bar (only for DOW mode)
                 if (_chartMode == 1) {
                     dc.setColor(COL_GRAY_TXT, Graphics.COLOR_TRANSPARENT);
-                    drawTinyChar(dc, bx + (barW/2) - 3, barBot + 3, filteredLabels[i] as String);
+                    dc.drawText(bx + (barW/2), barBot + 12, Graphics.FONT_XTINY, filteredLabels[i], Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
                 }
             }
         } else {
@@ -316,81 +316,7 @@ class HistoryView extends WatchUi.View {
         dc.fillPolygon([[x + 5, y + 1], [x + 2, y - 4], [x + 8, y - 4]]);
     }
     
-    // Draw a number centered at (cx, y) using 5×7 pixel digits
-    function drawTinyNumber(dc as Dc, cx as Number, y as Number, num as Number) as Void {
-        var s = num.toString();
-        var digitW = 6; // 5px digit + 1px gap
-        var totalW = s.length() * digitW - 1;
-        var startX = cx - (totalW / 2);
-        for (var i=0; i<s.length(); i++) {
-            var ch = s.substring(i, i+1);
-            var dx = startX + (i * digitW);
-            drawTinyDigit(dc, dx, y, ch);
-        }
-    }
-    
-    // Draw a single character at (x, y) using 5×7 pixel rendering
-    function drawTinyChar(dc as Dc, x as Number, y as Number, ch as String) as Void {
-        if (ch.equals("M")) {
-            dc.fillRectangle(x, y, 1, 7); dc.fillRectangle(x+6, y, 1, 7);
-            dc.fillRectangle(x+1, y+1, 1, 1); dc.fillRectangle(x+5, y+1, 1, 1);
-            dc.fillRectangle(x+2, y+2, 1, 1); dc.fillRectangle(x+4, y+2, 1, 1);
-            dc.fillRectangle(x+3, y+3, 1, 1);
-        } else if (ch.equals("T")) {
-            dc.fillRectangle(x, y, 7, 1); dc.fillRectangle(x+3, y, 1, 7);
-        } else if (ch.equals("W")) {
-            dc.fillRectangle(x, y, 1, 7); dc.fillRectangle(x+6, y, 1, 7);
-            dc.fillRectangle(x+3, y+3, 1, 4);
-            dc.fillRectangle(x+1, y+6, 1, 1); dc.fillRectangle(x+2, y+5, 1, 1);
-            dc.fillRectangle(x+4, y+5, 1, 1); dc.fillRectangle(x+5, y+6, 1, 1);
-        } else if (ch.equals("F")) {
-            dc.fillRectangle(x, y, 1, 7); dc.fillRectangle(x, y, 5, 1); dc.fillRectangle(x, y+3, 4, 1);
-        } else if (ch.equals("S")) {
-            dc.fillRectangle(x+1, y, 4, 1); dc.fillRectangle(x, y+1, 1, 2);
-            dc.fillRectangle(x+1, y+3, 4, 1); dc.fillRectangle(x+5, y+4, 1, 2);
-            dc.fillRectangle(x+1, y+6, 4, 1);
-        }
-    }
-    
-    // Draw a single 5×7 pixel digit at position (x, y)
-    function drawTinyDigit(dc as Dc, x as Number, y as Number, ch as String) as Void {
-        if (ch.equals("0")) {
-            dc.fillRectangle(x+1, y, 3, 1); dc.fillRectangle(x+1, y+6, 3, 1);
-            dc.fillRectangle(x, y+1, 1, 5); dc.fillRectangle(x+4, y+1, 1, 5);
-        } else if (ch.equals("1")) {
-            dc.fillRectangle(x+2, y, 1, 7);
-            dc.fillRectangle(x+1, y+1, 1, 1); dc.fillRectangle(x+1, y+6, 3, 1);
-        } else if (ch.equals("2")) {
-            dc.fillRectangle(x, y, 5, 1); dc.fillRectangle(x+4, y+1, 1, 2);
-            dc.fillRectangle(x, y+3, 5, 1); dc.fillRectangle(x, y+4, 1, 2);
-            dc.fillRectangle(x, y+6, 5, 1);
-        } else if (ch.equals("3")) {
-            dc.fillRectangle(x, y, 5, 1); dc.fillRectangle(x+4, y+1, 1, 2);
-            dc.fillRectangle(x+1, y+3, 4, 1); dc.fillRectangle(x+4, y+4, 1, 2);
-            dc.fillRectangle(x, y+6, 5, 1);
-        } else if (ch.equals("4")) {
-            dc.fillRectangle(x, y, 1, 4); dc.fillRectangle(x+4, y, 1, 7);
-            dc.fillRectangle(x, y+3, 5, 1);
-        } else if (ch.equals("5")) {
-            dc.fillRectangle(x, y, 5, 1); dc.fillRectangle(x, y+1, 1, 2);
-            dc.fillRectangle(x, y+3, 5, 1); dc.fillRectangle(x+4, y+4, 1, 2);
-            dc.fillRectangle(x, y+6, 5, 1);
-        } else if (ch.equals("6")) {
-            dc.fillRectangle(x+1, y, 4, 1); dc.fillRectangle(x, y+1, 1, 5);
-            dc.fillRectangle(x+1, y+3, 4, 1); dc.fillRectangle(x+4, y+4, 1, 2);
-            dc.fillRectangle(x+1, y+6, 3, 1);
-        } else if (ch.equals("7")) {
-            dc.fillRectangle(x, y, 5, 1); dc.fillRectangle(x+4, y+1, 1, 6);
-        } else if (ch.equals("8")) {
-            dc.fillRectangle(x+1, y, 3, 1); dc.fillRectangle(x+1, y+3, 3, 1);
-            dc.fillRectangle(x+1, y+6, 3, 1);
-            dc.fillRectangle(x, y+1, 1, 5); dc.fillRectangle(x+4, y+1, 1, 5);
-        } else if (ch.equals("9")) {
-            dc.fillRectangle(x+1, y, 3, 1); dc.fillRectangle(x+1, y+3, 4, 1);
-            dc.fillRectangle(x, y+1, 1, 2); dc.fillRectangle(x+4, y+1, 1, 5);
-            dc.fillRectangle(x+1, y+6, 3, 1);
-        }
-    }
+
     
     // Actions
     function nextSpan() as Void {
@@ -424,7 +350,6 @@ class HistoryView extends WatchUi.View {
     
     function scroll(dir as Number) as Void {
         var dataSize = (_viewMode == 0) ? _dailyData.size() : _yearlyData.size();
-        var visible = 10; // Approx
         if (dir > 0 && _scrollOffset < (dataSize - 3)) {
             _scrollOffset += 1;
             WatchUi.requestUpdate();

@@ -1,4 +1,5 @@
 import Toybox.Graphics;
+import Toybox.Application;
 import Toybox.WatchUi;
 import Toybox.Lang;
 import Toybox.Timer;
@@ -19,6 +20,9 @@ class MainView extends WatchUi.View {
     private var _monthTotal as Number = 0;
     private var _horniness as Number = 3;
     private var _interactionCount as Number = 0;
+    
+    // Sync state
+    private var _syncStatus as Number = 0; // 0=IDLE
 
     // Navigation state
     private var _selectedYear as Number = 2026;
@@ -59,6 +63,9 @@ class MainView extends WatchUi.View {
         var info = Gregorian.info(now, Time.FORMAT_SHORT);
         _selectedYear = info.year;
         _selectedMonth = info.month;
+        
+        // Register for sync updates
+        getApp().getNetworkManager().setStatusCallback(method(:onSyncStatus));
     }
 
     function onLayout(dc as Dc) as Void {
@@ -223,6 +230,51 @@ class MainView extends WatchUi.View {
             dc.setColor(HORN_COLORS_ACTIVE[horniness - 1] as Number, Graphics.COLOR_TRANSPARENT);
             dc.drawText(cx, hornLabelY, Graphics.FONT_SYSTEM_XTINY, hornLabels[horniness - 1], Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
+
+        // --- SECTION 4: Sync Indicator (Top Center) ---
+        // IDLE=0, PROGRESS=1, SUCCESS=2, ERROR=3
+        if (_syncStatus != 0) {
+            var indY = 15; 
+            var indR = 4;
+            var indColor = Graphics.COLOR_LT_GRAY;
+            
+            if (_syncStatus == 1) { // Progress
+                indColor = Graphics.COLOR_BLUE;
+                // Blink effect
+                if (System.getTimer() % 1000 < 500) { indColor = Graphics.COLOR_DK_GRAY; }
+            } else if (_syncStatus == 2) { // Success
+                indColor = Graphics.COLOR_GREEN;
+            } else if (_syncStatus == 3) { // Error
+                indColor = Graphics.COLOR_RED;
+            }
+            
+            dc.setColor(indColor, Graphics.COLOR_TRANSPARENT);
+            dc.fillCircle(cx, indY, indR);
+        }
+    }
+
+    function onSyncStatus(status as Number) as Void {
+        _syncStatus = status;
+        WatchUi.requestUpdate();
+        
+        // Auto-hide success/error after 3s
+        if (status == 2 || status == 3) {
+            if (_animationTimer != null) {
+                // Reuse the animation timer for this simple delay
+                // Note: unique ID for timer would be better but simple reuse is safer than creating new ones
+                _animationTimer.stop();
+                _animationTimer.start(method(:resetSyncStatus), 3000, false);
+            } else {
+                 // Should not happen as init in onLayout, but just in case
+                 _animationTimer = new Timer.Timer();
+                 _animationTimer.start(method(:resetSyncStatus), 3000, false);
+            }
+        }
+    }
+
+    function resetSyncStatus() as Void {
+        _syncStatus = 0;
+        WatchUi.requestUpdate();
     }
     
     // Log interaction

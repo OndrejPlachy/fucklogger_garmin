@@ -29,6 +29,20 @@ module DataManager {
         ]);
     }
 
+    // Get current timestamp as ISO string (YYYY-MM-DDTHH:MM:SS)
+    function getTimestampISO() as String {
+        var now = Time.now();
+        var info = Gregorian.info(now, Time.FORMAT_SHORT);
+        return Lang.format("$1$-$2$-$3$T$4$:$5$:$6$", [
+            info.year.format("%04d"),
+            info.month.format("%02d"),
+            info.day.format("%02d"),
+            info.hour.format("%02d"),
+            info.min.format("%02d"),
+            info.sec.format("%02d")
+        ]);
+    }
+
     // Convert ISO date to display format (DD.MM.YYYY)
     function formatDateDisplay(isoDate as String) as String {
         // Parse "YYYY-MM-DD" -> "DD.MM.YYYY"
@@ -516,5 +530,50 @@ module DataManager {
         }
 
         return result;
+    }
+    // --- Sync Support ---
+
+    const KEY_LAST_SYNC = "LastSyncTime";
+
+    function setLastSyncTime(moment as Time.Moment) as Void {
+        Storage.setValue(KEY_LAST_SYNC, moment.value());
+    }
+
+    function getLastSyncTime() as Time.Moment? {
+        var val = Storage.getValue(KEY_LAST_SYNC);
+        if (val != null) {
+            return new Time.Moment(val);
+        }
+        return null;
+    }
+
+    // Get all records for server sync (last 365 days)
+    // Returns array of Dictionary
+    function getAllRecords() as Array<Dictionary> {
+        var records = [] as Array<Dictionary>;
+        var now = Time.now();
+
+        // Scan last 365 days
+        for (var i = 0; i < 365; i++) {
+            var checkTime = now.subtract(new Time.Duration(i * Gregorian.SECONDS_PER_DAY));
+            var info = Gregorian.info(checkTime, Time.FORMAT_SHORT);
+            var dateKey = Lang.format("$1$-$2$-$3$", [
+                info.year.format("%04d"),
+                info.month.format("%02d"),
+                info.day.format("%02d")
+            ]);
+            
+            var log = getLog(dateKey);
+            if (log != null && log[0] > 0) {
+                var dist = getDistribution(log);
+                records.add({
+                    "date" => dateKey,
+                    "count" => log[0],
+                    "horniness" => log[1],
+                    "distribution" => dist
+                });
+            }
+        }
+        return records;
     }
 }
