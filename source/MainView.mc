@@ -32,29 +32,23 @@ class MainView extends WatchUi.View {
     private const MONTH_NAMES = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
                                   "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
     // Color constants for panel
-    private const YEAR_COLOR = 0x6EC6FF;   // Light blue
+    private const YEAR_COLOR = 0x4DD0E1;   // Teal
     private const MONTH_COLOR = 0xFF69B4;  // Hot pink
 
     // Animation state
     private var _animationTimer as Timer.Timer?;
     private var _isAnimating as Boolean = false;
-    private var _animScale as Float = 1.0; // Scale factor for "pop" effect
     private var _animPhase as Number = 0;
-    
-    // Colors
-    private const HOT_PINK = 0xFF69B4;
-    private const ARC_TRACK_COLOR = 0x222222; // Very dark gray for empty track
 
     // Horniness arc colors: cold blue → hot red (5 levels)
     // 1=cold, 2=cool, 3=warm, 4=hot, 5=fire
     private const HORN_COLORS_ACTIVE = [
-        0x6EC6FF,  // light blue (cold)
-        0x4DD0E1,  // cyan
-        0xFFB74D,  // warm orange
-        0xFF7043,  // hot coral
-        0xFF4081   // hot pink/red
+        0x00AAFF,  // light blue (cold)
+        0x4DD0E1,  // cyan (cool)
+        0xFFB74D,  // warm orange/amber (warm)
+        0xFF8800,  // hot orange (hot)
+        0xFF0000   // hot red (fire)
     ];
-    // unused HORN_COLOR_OFF removed
     
     function initialize() {
         View.initialize();
@@ -69,7 +63,7 @@ class MainView extends WatchUi.View {
     }
 
     function onLayout(dc as Dc) as Void {
-        _eggplantBitmap = WatchUi.loadResource(Rez.Drawables.EggplantIcon) as BitmapResource;
+        _eggplantBitmap = WatchUi.loadResource(Rez.Drawables.AppIcon) as BitmapResource;
         _animationTimer = new Timer.Timer();
         refreshData();
     }
@@ -101,11 +95,12 @@ class MainView extends WatchUi.View {
 
         // --- SECTION 1: TOP — Split panel [Year | Month] ---
         // Vertical stacked layout without backgrounds
-        var arrowUpY = height * 8 / 100;     // ~31px - top arrows
-        var headerY = height * 12 / 100;     // ~48px - 2026 / FEB
-        var numberY = height * 23 / 100;     // ~90px - 30 / 16 (large)
-        var labelY = height * 30 / 100;      // ~118px - YTD / MTD
-        var arrowDownY = height * 36 / 100;  // ~142px - bottom arrows
+        // Hardcode locY positioning to strictly enforce a grid
+        var arrowUpY = 30;
+        var headerY = 50;
+        var numberY = 85;
+        var labelY = 120;
+        var arrowDownY = 140;
         
         var leftColX = width * 32 / 100;     // Shifted slightly left from center
         var rightColX = width * 68 / 100;    // Shifted slightly right from center
@@ -115,12 +110,12 @@ class MainView extends WatchUi.View {
         // Up arrow ▲ (small)
         dc.fillPolygon([[leftColX, arrowUpY - 5], [leftColX - 6, arrowUpY + 3], [leftColX + 6, arrowUpY + 3]]);
         // Header: 2026
-        dc.drawText(leftColX, headerY, Graphics.FONT_TINY, _selectedYear.toString(), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText(leftColX, headerY, Graphics.FONT_XTINY, _selectedYear.toString(), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         // Value: 30
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(leftColX, numberY, Graphics.FONT_NUMBER_MEDIUM, yearCount.toString(), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText(leftColX, numberY, Graphics.FONT_MEDIUM, yearCount.toString(), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         // Label: YTD
-        dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(0xAAAAAA, Graphics.COLOR_TRANSPARENT);
         dc.drawText(leftColX, labelY, Graphics.FONT_XTINY, "YTD", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         // Down arrow ▼ (small)
         dc.setColor(YEAR_COLOR, Graphics.COLOR_TRANSPARENT);
@@ -132,34 +127,19 @@ class MainView extends WatchUi.View {
         dc.fillPolygon([[rightColX, arrowUpY - 5], [rightColX - 6, arrowUpY + 3], [rightColX + 6, arrowUpY + 3]]);
         // Header: FEB
         var monthLabel = MONTH_NAMES[_selectedMonth - 1];
-        dc.drawText(rightColX, headerY, Graphics.FONT_TINY, monthLabel, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText(rightColX, headerY, Graphics.FONT_XTINY, monthLabel, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         // Value: 16
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(rightColX, numberY, Graphics.FONT_NUMBER_MEDIUM, monthCount.toString(), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.drawText(rightColX, numberY, Graphics.FONT_MEDIUM, monthCount.toString(), Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         // Label: MTD
-        dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(0xAAAAAA, Graphics.COLOR_TRANSPARENT);
         dc.drawText(rightColX, labelY, Graphics.FONT_XTINY, "MTD", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         // Down arrow ▼ (small)
         dc.setColor(MONTH_COLOR, Graphics.COLOR_TRANSPARENT);
         dc.fillPolygon([[rightColX, arrowDownY + 5], [rightColX - 6, arrowDownY - 3], [rightColX + 6, arrowDownY - 3]]);
 
         // --- SECTION 2: CENTER — Eggplant button ---
-        // Center circle logic with scale animation
-        var baseRadius = 50;
-        var currentRadius = baseRadius * _animScale;
         var circleCY = cy + 5;
-
-        // Draw animated circle
-        if (_isAnimating && _animPhase < 2) {
-            // Flash phase
-            dc.setColor(HOT_PINK, Graphics.COLOR_TRANSPARENT);
-            dc.fillCircle(cx, circleCY, currentRadius);
-        } else {
-            // Normal phase
-            dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
-            dc.setPenWidth(3);
-            dc.drawCircle(cx, circleCY, currentRadius);
-        }
 
         // Eggplant icon
         if (_eggplantBitmap != null) {
@@ -177,73 +157,65 @@ class MainView extends WatchUi.View {
             dc.drawBitmap(drawX, drawY, _eggplantBitmap);
         }
 
-        // --- Minus button: small circle with '−' to the left ---
-        var minusBtnX = cx - baseRadius - 40; // Moved slightly further left
-        var minusBtnY = circleCY;
-        var minusBtnR = 14;
-        
-        // Subtle background
-        dc.setColor(0x222222, Graphics.COLOR_TRANSPARENT);
-        dc.fillCircle(minusBtnX, minusBtnY, minusBtnR);
-        
-        // Red accent for "remove" action
-        dc.setColor(0xFF5555, Graphics.COLOR_TRANSPARENT); 
-        dc.setPenWidth(2);
-        dc.drawLine(minusBtnX - 6, minusBtnY, minusBtnX + 6, minusBtnY); // Minus sign
-
         // --- SECTION 3: BOTTOM — Horniness arc slider ---
         var arcRadius = (width / 2) - 18;
-        var arcWidth = 14;
-        var totalArcSpan = 100;
-        // unused maxDegrees removed
-        var startAngle = 220;
+        var arcWidth = 10; // Substantial gauge thickness
+        var startAngle = 214; // Starting quadrant
+        var endAngle = 326; // Ending quadrant
+        var totalArcSpan = endAngle - startAngle; // 112 degrees total
         
         dc.setPenWidth(arcWidth);
         
-        // 1. Draw "Track" (background)
-        dc.setColor(ARC_TRACK_COLOR, Graphics.COLOR_TRANSPARENT);
-        dc.drawArc(cx, cy, arcRadius, Graphics.ARC_COUNTER_CLOCKWISE, startAngle, startAngle + totalArcSpan);
-
-        // 2. Draw Active Segments
-        var segmentGap = 3;
-        var segmentSpan = (totalArcSpan - (4 * segmentGap)) / 5;
+        // 1. Draw Segments (Background + Active fillable gauge)
+        var segmentGap = 2; // 2-degree visual gap
+        // (112 - 8) / 5 = 104 / 5 = 20.8 (Requires exact integers to prevent slight rounding gaps)
+        // Let's use 108 deg span: (108 - 8) / 5 = 20 exactly.
+        // 270 is perfectly bottom center. 270 - (108/2) = 216 -> 270 + 54 = 324
+        startAngle = 216;
+        endAngle = 324;
+        totalArcSpan = endAngle - startAngle; // 108
+        var segmentSpan = Math.floor((totalArcSpan - (4 * segmentGap)) / 5).toNumber(); // Exactly 20
         
         for (var i = 0; i < 5; i++) {
+            var segStart = startAngle + (i * (segmentSpan + segmentGap));
+            var color = 0x333333; // Default inactive dark grey
+            
             if (i < horniness) {
-                var segStart = startAngle + (i * (segmentSpan + segmentGap));
-                var color = HORN_COLORS_ACTIVE[i] as Number;
-                dc.setColor(color, Graphics.COLOR_TRANSPARENT);
-                dc.drawArc(cx, cy, arcRadius, Graphics.ARC_COUNTER_CLOCKWISE, segStart, segStart + segmentSpan);
+                color = HORN_COLORS_ACTIVE[i] as Number; // Lit up tier color
             }
+            
+            dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+            dc.drawArc(cx, cy, arcRadius, Graphics.ARC_COUNTER_CLOCKWISE, segStart, segStart + segmentSpan);
         }
 
         // Horniness label below the eggplant
-        var hornLabelY = circleCY + baseRadius + 22;
+        var hornLabelY = 285; // Snug right below ring and above the arc
         var hornLabels = ["COLD", "COOL", "WARM", "HOT", "FIRE"];
         if (horniness > 0 && horniness <= 5) {
             dc.setColor(HORN_COLORS_ACTIVE[horniness - 1] as Number, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, hornLabelY, Graphics.FONT_SYSTEM_XTINY, hornLabels[horniness - 1], Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.drawText(cx, hornLabelY, Graphics.FONT_XTINY, hornLabels[horniness - 1], Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
 
         // --- SECTION 4: Sync Indicator (Top Center) ---
         // IDLE=0, PROGRESS=1, SUCCESS=2, ERROR=3
         if (_syncStatus != 0) {
-            var indY = 15; 
-            var indR = 4;
-            var indColor = Graphics.COLOR_LT_GRAY;
+            var indY = 8; 
+            var indR = 3;
+            var indColor = Graphics.COLOR_BLACK; // Default idle = invisible
             
             if (_syncStatus == 1) { // Progress
-                indColor = Graphics.COLOR_BLUE;
-                // Blink effect
-                if (System.getTimer() % 1000 < 500) { indColor = Graphics.COLOR_DK_GRAY; }
+                indColor = 0x00AAFF; // Blue
             } else if (_syncStatus == 2) { // Success
-                indColor = Graphics.COLOR_GREEN;
+                indColor = 0x00FF00; // Green
             } else if (_syncStatus == 3) { // Error
-                indColor = Graphics.COLOR_RED;
+                indColor = 0xFF0000; // Red
             }
             
-            dc.setColor(indColor, Graphics.COLOR_TRANSPARENT);
-            dc.fillCircle(cx, indY, indR);
+            // Only draw if not idle
+            if (indColor != Graphics.COLOR_BLACK) {
+                dc.setColor(indColor, Graphics.COLOR_TRANSPARENT);
+                dc.fillCircle(cx, indY, indR);
+            }
         }
     }
 
@@ -279,35 +251,12 @@ class MainView extends WatchUi.View {
         startAnimation();
     }
     
-    // Undo interaction
-    function undoInteraction() as Void {
-        if (_interactionCount > 0) {
-            _interactionCount -= 1;
-            // Decrement distribution bucket
-            var todayISO = DataManager.getTodayISO();
-            var data = DataManager.getLog(todayISO);
-            var dist = DataManager.getDistribution(data);
-            for (var h = 4; h >= 0; h--) {
-                if (dist[h] > 0) {
-                    dist[h] -= 1;
-                    break;
-                }
-            }
-            var newData = [_interactionCount, _horniness, dist[0], dist[1], dist[2], dist[3], dist[4]] as Array<Number>;
-            // Use saveLog to handle stats (it will preserve the dist we're passing indirectly)
-            DataManager.saveLog(todayISO, _interactionCount, _horniness);
-            // Now overwrite with correct distribution
-            Application.Storage.setValue(todayISO, newData);
-        }
-        refreshData();
-    }
-    
+
     // Animation: Pop effect (Scale Up -> Scale Down)
     function startAnimation() as Void {
         if (_animationTimer != null) {
             _isAnimating = true;
             _animPhase = 0;
-            _animScale = 1.0;
             _animationTimer.start(method(:animateFrame), 50, true); // 50ms frames
         }
     }
@@ -315,12 +264,7 @@ class MainView extends WatchUi.View {
     function animateFrame() as Void {
         _animPhase++;
         
-        if (_animPhase == 1) {
-            _animScale = 1.15; // Pop up
-        } else if (_animPhase == 2) {
-            _animScale = 1.05; // Scaling down
-        } else if (_animPhase >= 3) {
-            _animScale = 1.0; // Back to normal
+        if (_animPhase >= 3) {
             _isAnimating = false;
             _animationTimer.stop();
         }
@@ -359,13 +303,13 @@ class MainView extends WatchUi.View {
     }
     
     function getCircleRadius() as Number {
-        return 50;
+        return 54;
     }
 
     function getMinusButtonCenter() as Array<Number> {
         var cx = System.getDeviceSettings().screenWidth / 2;
         var cy = (System.getDeviceSettings().screenHeight / 2) + 5;
-        return [cx - 50 - 40, cy] as Array<Number>;
+        return [cx - 36 - 40, cy] as Array<Number>;
     }
 
     // --- Navigation methods ---

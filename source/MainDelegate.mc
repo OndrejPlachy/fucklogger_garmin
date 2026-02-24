@@ -3,12 +3,14 @@ import Toybox.Lang;
 import Toybox.Attention;
 import Toybox.System;
 import Toybox.Math;
+import Toybox.Timer;
 
 // Input Delegate for Main View
 // Tap detection: inside eggplant circle = log, outside = horniness
 class MainDelegate extends WatchUi.BehaviorDelegate {
     
     private var _view as MainView;
+    private var _holdTimer as Timer.Timer?;
     
     function initialize(view as MainView) {
         BehaviorDelegate.initialize();
@@ -17,10 +19,11 @@ class MainDelegate extends WatchUi.BehaviorDelegate {
     
     // Handle screen tap — zones:
     // 1. Arrow buttons (year up/down, month up/down) → navigate
-    // 2. Minus button → decrement selected month
-    // 3. Eggplant circle → increment (today or selected month)
-    // 4. Bottom area → set horniness directly (left=1, right=5)
+    // 2. Eggplant circle → increment (today or selected month)
+    // 3. Bottom area → set horniness directly (left=1, right=5)
     function onTap(clickEvent as ClickEvent) as Boolean {
+        stopHoldTimer();
+        
         var coords = clickEvent.getCoordinates();
         var tapX = coords[0];
         var tapY = coords[1];
@@ -32,8 +35,8 @@ class MainDelegate extends WatchUi.BehaviorDelegate {
         var circleR = _view.getCircleRadius();
 
         // --- Invisible Box Touch Zones (Top panel) ---
-        // The top panel occupies roughly the top 40% of the screen.
-        var topPanelHeight = screenHeight * 0.4;
+        // The top panel block covers down through the bottom arrows (Y=140)
+        var topPanelHeight = 160;
         
         // 1. Sync Trigger Override (Top Center)
         // Ensure manual sync trigger doesn't consume whole top of screen.
@@ -44,24 +47,24 @@ class MainDelegate extends WatchUi.BehaviorDelegate {
              return true;
         }
 
-        // 2. Year & Month Invisible Touch Zones
+        // 2. Year & Month Massive Invisible Touch Zones
         if (tapY < topPanelHeight) {
             var isLeftHalf = (tapX < cx);
-            var centerOfTextY = screenHeight * 0.23; // rough center of the large number
+            var centerOfTextY = 85; // Exact center of the FONT_MEDIUM Value text block
             
             if (isLeftHalf) {
-                // Year Zone
+                // Year Zone (Entire Left Half)
                 if (tapY < centerOfTextY) {
-                    _view.nextYear();
+                    _view.nextYear(); // Tapped upper half -> UP arrow -> Next
                 } else {
-                    _view.prevYear();
+                    _view.prevYear(); // Tapped lower half -> DOWN arrow -> Prev
                 }
             } else {
-                // Month Zone
+                // Month Zone (Entire Right Half)
                 if (tapY < centerOfTextY) {
-                    _view.nextMonth();
+                    _view.nextMonth(); // Tapped upper half -> UP arrow -> Next
                 } else {
-                    _view.prevMonth();
+                    _view.prevMonth(); // Tapped lower half -> DOWN arrow -> Prev
                 }
             }
             WatchUi.requestUpdate();
@@ -75,27 +78,13 @@ class MainDelegate extends WatchUi.BehaviorDelegate {
         var selYear = _view.getSelectedYear();
         var selMonth = _view.getSelectedMonth();
         
-        // --- Minus button ---
-        var minusCenter = _view.getMinusButtonCenter();
-        var mdx = tapX - minusCenter[0];
-        var mdy = tapY - minusCenter[1];
-        var minusDistSq = (mdx * mdx) + (mdy * mdy);
-        var minusThreshSq = 28 * 28;
-
         // --- Eggplant circle ---
         var dx = tapX - cx;
         var dy = tapY - circleCY;
         var eggDistSq = (dx * dx) + (dy * dy);
         var eggThreshSq = (circleR + 15) * (circleR + 15);
 
-        if (minusDistSq <= minusThreshSq) {
-            var didDecrement = DataManager.decrementInMonth(selYear, selMonth);
-            if (didDecrement && Attention has :vibrate) {
-                var vibe = [new Attention.VibeProfile(30, 80)] as Array<Attention.VibeProfile>;
-                Attention.vibrate(vibe);
-            }
-            _view.refreshData();
-        } else if (eggDistSq <= eggThreshSq) {
+        if (eggDistSq <= eggThreshSq) {
             if (_view.isViewingCurrentMonth()) {
                 // Current month: add to today with current horniness tracking
                 DataManager.incrementDay(DataManager.getTodayISO(), currentHorniness);
@@ -131,9 +120,39 @@ class MainDelegate extends WatchUi.BehaviorDelegate {
     
     // Handle long press / hold — undo last interaction
     function onHold(clickEvent as ClickEvent) as Boolean {
-        _view.undoInteraction();
+        var coords = clickEvent.getCoordinates();
+        var tapX = coords[0];
+        var tapY = coords[1];
         
-        if (Attention has :vibrate) {
+        var cx = System.getDeviceSettings().screenWidth / 2;
+        var circleCY = _view.getCircleCenterY();
+        var circleR = _view.getCircleRadius();
+        
+        var dx = tapX - cx;
+        var dy = tapY - circleCY;
+        var eggDistSq = (dx * dx) + (dy * dy);
+        var eggThreshSq = (circleR + 15) * (circleR + 15);
+        
+        if (eggDistSq <= eggThreshSq) {
+            triggerUndo();
+            
+            if (_holdTimer == null) {
+                _holdTimer = new Timer.Timer();
+            }
+            _holdTimer.start(method(:triggerUndo), 400, true);
+        }
+        
+        return true;
+    }
+    
+    function triggerUndo() as Void {
+        var selYear = _view.getSelectedYear();
+        var selMonth = _view.getSelectedMonth();
+        
+        var didDecrement = DataManager.decrementInMonth(selYear, selMonth);
+        _view.refreshData();
+        
+        if (didDecrement && Attention has :vibrate) {
             var vibePattern = [
                 new Attention.VibeProfile(100, 300)
             ] as Array<Attention.VibeProfile>;
@@ -141,7 +160,29 @@ class MainDelegate extends WatchUi.BehaviorDelegate {
         }
         
         WatchUi.requestUpdate();
+    }
+    
+    function stopHoldTimer() as Void {
+        if (_holdTimer != null) {
+            _holdTimer.stop();
+            _holdTimer = null;
+        }
+    }
+    
+    function onRelease(clickEvent as ClickEvent) as Boolean {
+        stopHoldTimer();
         return true;
+    }
+
+    function onSwipe(swipeEvent as SwipeEvent) as Boolean {
+        stopHoldTimer();
+        var dir = swipeEvent.getDirection();
+        if (dir == WatchUi.SWIPE_DOWN) {
+            return onPreviousPage();
+        } else if (dir == WatchUi.SWIPE_UP) {
+            return onNextPage();
+        }
+        return false;
     }
     
     // Swipe down → Sync (Primary Trigger)
